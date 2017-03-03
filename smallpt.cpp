@@ -1,73 +1,85 @@
+
 #include <math.h>   // smallpt, a Path Tracer by Kevin Beason, 2008 
 #include <stdlib.h> // Make : g++ -O3 -fopenmp smallpt.cpp -o smallpt 
 #include <stdio.h>  //        Remove "-fopenmp" for g++ version < 4.2 
+
 struct Vec {        // Usage: time ./smallpt 5000 && xv image.ppm 
-  double x, y, z;                  // position, also color (r,g,b) 
-  Vec(double x_=0, double y_=0, double z_=0)
+  double x{0}, y{0}, z{0};                  // position, also color (r,g,b) 
+  constexpr Vec() noexcept = default;
+  constexpr Vec(double x_, double y_=0, double z_=0) noexcept
+    : x(x_), y(y_), z(z_)
   { 
-    x=x_; 
-    y=y_; 
-    z=z_; 
   } 
 
-  Vec operator+(const Vec &b) const { 
+  constexpr Vec operator+(const Vec b) const noexcept { 
     return Vec(x+b.x,y+b.y,z+b.z); 
   }
 
-  Vec operator-(const Vec &b) const { 
+  constexpr Vec operator-(const Vec b) const noexcept { 
     return Vec(x-b.x,y-b.y,z-b.z); 
   }
 
-  Vec operator*(double b) const { 
+  constexpr Vec operator*(double b) const noexcept { 
     return Vec(x*b,y*b,z*b); 
   }
 
-  Vec mult(const Vec &b) const { 
+  constexpr Vec mult(const Vec b) const noexcept { 
     return Vec(x*b.x,y*b.y,z*b.z); 
   } 
 
-  Vec& norm(){ 
+  constexpr Vec& norm() noexcept { 
     return *this = *this * (1/sqrt(x*x+y*y+z*z)); 
   }
 
-  double dot(const Vec &b) const { 
+  constexpr double dot(const Vec b) const noexcept { 
     return x*b.x+y*b.y+z*b.z; 
   }  
 
   // cross:
-  Vec operator%(Vec&b){
+  constexpr Vec operator%(const Vec b) const noexcept {
     return Vec(y*b.z-z*b.y,z*b.x-x*b.z,x*b.y-y*b.x);
   } 
 }; 
 
 struct Ray { 
   Vec o, d;          
-  Ray(Vec o_, Vec d_) : o(o_), d(d_) {} 
+  constexpr Ray(Vec o_, Vec d_) noexcept : o(o_), d(d_) {} 
 };
 
 enum Refl_t { DIFF, SPEC, REFR };  // material types, used in radiance() 
+
 struct Sphere { 
   double rad;       // radius 
   Vec p, e, c;      // position, emission, color 
   Refl_t refl;      // reflection type (DIFFuse, SPECular, REFRactive) 
-  Sphere(double rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_)
+  
+  constexpr Sphere(double rad_, Vec p_, Vec e_, Vec c_, Refl_t refl_) noexcept
     : rad(rad_), p(p_), e(e_), c(c_), refl(refl_) 
     {} 
 
-  double intersect(const Ray &r) const { // returns distance, 0 if nohit 
-    Vec op = p-r.o; // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0 
-    double t, eps=1e-4, b=op.dot(r.d), det=b*b-op.dot(op)+rad*rad; 
+  constexpr double intersect(const Ray &r) const noexcept { // returns distance, 0 if nohit 
+    const Vec op = p-r.o; // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0 
+    constexpr const double eps=1e-4;
+    const auto b=op.dot(r.d);
+    auto det=b*b-op.dot(op)+rad*rad; 
 
-    if (det<0) 
+    if (det<0) {
       return 0; 
-    else 
+    } else  {
       det=sqrt(det); 
+    }
 
-    return (t=b-det)>eps ? t : ((t=b+det)>eps ? t : 0); 
+    if (const auto t = b-det; t > eps) {
+      return t;
+    } else if (const auto t = b+det; t > eps) {
+      return t;
+    } else {
+      return 0;
+    }
   } 
 }; 
 
-Sphere spheres[] = {//Scene: radius, position, emission, color, material 
+constexpr const Sphere spheres[] = {//Scene: radius, position, emission, color, material 
   Sphere(1e5, Vec( 1e5+1,40.8,81.6), Vec(),Vec(.75,.25,.25),DIFF),//Left 
   Sphere(1e5, Vec(-1e5+99,40.8,81.6),Vec(),Vec(.25,.25,.75),DIFF),//Rght 
   Sphere(1e5, Vec(50,40.8, 1e5),     Vec(),Vec(.75,.75,.75),DIFF),//Back 
@@ -79,25 +91,34 @@ Sphere spheres[] = {//Scene: radius, position, emission, color, material
   Sphere(600, Vec(50,681.6-.27,81.6),Vec(12,12,12),  Vec(), DIFF) //Lite 
 }; 
 
-inline double clamp(double x)
+constexpr inline double clamp(double x) noexcept
 { 
-  return x<0 ? 0 : x>1 ? 1 : x; 
+  return x<0 ? 0 : (x>1 ? 1 : x); 
 } 
 
-inline int toInt(double x){ 
+inline int toInt(double x) noexcept { 
   return int(pow(clamp(x),1/2.2)*255+.5); 
 } 
 
-inline bool intersect(const Ray &r, double &t, int &id) { 
-  double n=sizeof(spheres)/sizeof(Sphere), d, inf=t=1e20; 
-  for(int i=int(n);i--;) if((d=spheres[i].intersect(r))&&d<t){t=d;id=i;} 
-  return t<inf; 
+constexpr inline bool intersect(const Ray &r, double &t, int &id) noexcept { 
+  constexpr const auto n=sizeof(spheres)/sizeof(Sphere);
+  const double inf=t=1e20; 
+  
+  for(auto i = n; i-- != 0; )  {
+    if(const double d=spheres[i].intersect(r); d !=0.0 && d<t ){
+      t=d;
+      id=i;
+    } 
+  }
+  
+  return t < inf; 
 } 
 
 Vec radiance(const Ray &r, int depth, unsigned short *Xi)
 { 
   double t;                               // distance to intersection 
-  int id=0;                               // id of intersected object 
+  int id(0);                               // id of intersected object 
+  
   if (!intersect(r, t, id)) return Vec(); // if miss, return black 
   
   const Sphere &obj = spheres[id];        // the hit object 
@@ -136,13 +157,16 @@ Vec radiance(const Ray &r, int depth, unsigned short *Xi)
                         radiance(reflRay,depth,Xi)*Re+radiance(Ray(x,tdir),depth,Xi)*Tr); 
 } 
 
-int main(int argc, char *argv[]){ 
+int main(int argc, char *argv[]){   
   int w=160, h=120, samps = argc==2 ? atoi(argv[1])/4 : 60; // # samples 
+  
   Ray cam(Vec(50,52,295.6), Vec(0,-0.042612,-1).norm()); // cam pos, dir 
   Vec cx=Vec(w*.5135/h), cy=(cx%cam.d).norm()*.5135, r, *c=new Vec[w*h]; 
 
-  for (int y=0; y<h; y++){                       // Loop over image rows 
+  for (int y=0; y<h; y++) {                      // Loop over image rows 
+    
     fprintf(stderr,"\rRendering (%d spp) %5.2f%%",samps*4,100.*y/(h-1)); 
+    
     for (unsigned short x=0, Xi[3]={0,0,y*y*y}; x<w; x++)   // Loop cols 
       for (int sy=0, i=(h-y-1)*w+x; sy<2; sy++)     // 2x2 subpixel rows 
         for (int sx=0; sx<2; sx++, r=Vec()){        // 2x2 subpixel cols 
@@ -157,9 +181,11 @@ int main(int argc, char *argv[]){
         } 
   } 
 
-  FILE *f = fopen("image.ppm", "w");         // Write image to PPM file. 
+  FILE *f = fopen("/home/jason/image.ppm", "w");         // Write image to PPM file. 
   fprintf(f, "P3\n%d %d\n%d\n", w, h, 255); 
+  
   for (int i=0; i<w*h; i++) 
     fprintf(f,"%d %d %d ", toInt(c[i].x), toInt(c[i].y), toInt(c[i].z)); 
+   
+  
 } 
-
